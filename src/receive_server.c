@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <fcntl.h>
 
 #define PORT 8090
 #define MAX_CONNECTIONS 5
@@ -26,15 +27,25 @@ int main()
 {
 	/* Create a non-blocking listening socket. A socket can be made non-blocking through the following means:
 	 * 1. Setting the type argument of socket() to be the bitwise OR of SOCK_NOBLOCK
+	 * int server_fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 	 * 2. Setting O_NONBLOCK status flag on the socket file descriptor using fcntl()
-	 * In this case we use socket(), and leave fcntl() for future tests
+	 Since macOS doesn't support setting non-blocking socket through socket(), we use fcntl() here
 	 */
-	int server_fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+	int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+	
 	if(server_fd < 0)
 	{
 		perror("Socket failed");
 		exit(1);
 	}
+	
+	int flags = fcntl(server_fd, F_GETFL, 0);
+	if (fcntl(server_fd, F_SETFL, flags | SOCK_NONBLOCK) == -1)
+        {
+                perror("fcntl failed");
+                exit(1);
+        }
+
 
 	/* When a server is shutdown, the OS keeps that port reserved for 1–2 minutes to ensure 
 	 * no late-arriving packets from the old connection get mixed up with a new one.
