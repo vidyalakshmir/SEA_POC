@@ -1,3 +1,14 @@
+/*
+ ============================================================================
+ Name        : receive_server.c
+ Description : This simple server program creates a non-blocking socket(), binds to port 8090,
+ 	       and listens on it. The accept() function is invoked to receive client connections,
+	       and once it succeeds, the server receives data from the client, closes the client
+	       socket and stops. The accept() is non-blocking; if no client connects, the server sleeps for 1 second
+	       and loops back to accept() for the next connection.
+ ============================================================================
+ */
+
 #include <sys/socket.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -8,26 +19,28 @@
 
 #define PORT 8090
 #define MAX_CONNECTIONS 5
+#define BUF_SIZE 1024
 
-/*
- * This simple server program creates a non-blocking socket(), binds to port 8090,
- * and listens on it. The accept() function is invoked to receive client connections,
- * and once it succeeds, the server receives data from the client, closes the client
- * socket, and then loops back to accept() for the next connection. 
- * The accept() is non-blocking; if no client connects, the server sleeps for 1 second.
- * Behavior of recv() differs between 
- */
 
 int main()
 {
-	// Create a non-blocking listening socket
+	/* Create a non-blocking listening socket. A socket can be made non-blocking through the following means:
+	 * 1. Setting the type argument of socket() to be the bitwise OR of SOCK_NOBLOCK
+	 * 2. Setting O_NONBLOCK status flag on the socket file descriptor using fcntl()
+	 * In this case we use socket(), and leave fcntl() for future tests
+	 */
 	int server_fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 	if(server_fd < 0)
 	{
 		perror("Socket failed");
 		exit(1);
 	}
-	//Allow port reuse to avoid "Bind failed" after restarts
+
+	/* When a server is shutdown, the OS keeps that port reserved for 1–2 minutes to ensure 
+	 * no late-arriving packets from the old connection get mixed up with a new one.
+	 * When the server is tested successively, setting SO_REUSEADDR allows the server
+	 * to bind to the port immediately after a restart, bypassing the "Address already in use" error
+	 */
 	
 	int opt = 1;
         setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
@@ -37,7 +50,7 @@ int main()
 	address.sin_addr.s_addr = INADDR_ANY;
 	address.sin_port = htons(PORT);
 
-	//Binds the socket with the port number 8090
+	//Binds the socket with the port number specified by PORT
 	if(bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0)
 	{
 		perror("Bind failed");
@@ -54,20 +67,26 @@ int main()
 	printf("Server listening on port %d\n",PORT);
 	socklen_t addrlen = sizeof(address);
 	int client_sockdesc = -1; 
-	char buffer[1024];
+	char buffer[BUF_SIZE];
 	while(1)
 	{
 		printf("\nWaiting for client to connect\n");
 		//Accepts client connections
 		client_sockdesc = accept(server_fd, (struct sockaddr *)&address, &addrlen);
-		printf("Return value of accept() is %d",client_sockdesc);		
+		printf("\nReturn value of accept() is %d. ErrorCode is %d\n",client_sockdesc, errno);		
 		if(client_sockdesc < 0)
 		{
+			/* * Handling Non-Blocking Accept:
+			   * Since the listening socket is non-blocking, if no connection is pending,
+			   * accept() returns -1 and sets errno to EWOULDBLOCK or EAGAIN.
+			   * The server sleeps for 1 second to throttle the loop, preventing a "busy-wait"
+			   * scenario that would consume 100% CPU usage.
+ 			*/
 			if(errno == EWOULDBLOCK || errno == EAGAIN)
 			{
-				printf("Sleeping for client. ErrorCode: %d\n", errno);
+				printf("\nSleeping for 1 second\n");
 				fflush(stdout);
-				usleep(1000000); //Sleep for 10 seconds
+				usleep(1000000); //Sleep for 1 second
 				continue;
 			}
 			else
@@ -76,20 +95,31 @@ int main()
 				exit(1);
 			}
 		}
-		printf("\nConnection accepted! Waiting to receive data from the client!\n");
-		memset(buffer, 0, sizeof(buffer)); // Clear the buffer
-		//Receives data from client
-		int recvflag = recv(client_sockdesc, buffer, sizeof(buffer),0);
-		if(recvflag <= 0)
-		{
-			perror("Receive failed");
-			exit(1);
-		}
-		printf("\nReceived data : %s\n",buffer);
-		close(client_sockdesc);
+		else
+			break;
 	}
-	close(server_fd);
-	return 0;
+	printf("\nConnection accepted! Waiting to receive data from the client!\n");
+	memset(buffer, 0, sizeof(buffer)); // Clear the buffer
+					   //
+	/* Receives data from client. If successful, recv() returns
+	 * the number of bytes of data received. If not successful,
+	 * it returns -1, and the errno is set to indicate the error
+	 */
+	int recvflag = recv(client_sockdesc, buffer, sizeof(buffer) - 1,0);
+	if(recvflag <= 0)
+	{
+		perror("Receive failed");
+		exit(1);
+	}
 
-	
+	/* Adding the null terminator at the end of received data to avoid 
+	 * information leak or segmentation fault while printing the data using printf(). 
+	 * This is because recv() does not null-terminate the data it receives while printf 
+	 * reads the buffer till it encounters a null character (\0).
+	 */
+	buffer[recvflag] = '\0';
+	printf("\nReceived data : %s\n",buffer);
+	close(client_sockdesc);
+	close(server_fd);
+	return 0;	
 }
