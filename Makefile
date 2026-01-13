@@ -3,13 +3,18 @@ CC = gcc
 BIN_DIR = bin
 RECEIVE_SERVER = $(BIN_DIR)/receive_server
 SEND_CLIENT = $(BIN_DIR)/send_client
+PATCHED_RECEIVE_SERVER = $(BIN_DIR)/patched_receive_server
 
 # The 'all' target needs to know what it's building
-all: $(RECEIVE_SERVER) $(SEND_CLIENT)
+all: $(RECEIVE_SERVER) $(SEND_CLIENT) $(PATCHED_RECEIVE_SERVER)
 
 $(RECEIVE_SERVER): src/receive_server.c
 	@mkdir -p $(BIN_DIR)
 	$(CC) src/receive_server.c -o $(RECEIVE_SERVER)
+
+$(PATCHED_RECEIVE_SERVER): src/patched_receive_server.c
+	@mkdir -p $(BIN_DIR)
+	$(CC) src/patched_receive_server.c -o $(PATCHED_RECEIVE_SERVER)
 
 $(SEND_CLIENT): src/send_client.c
 	@mkdir -p $(BIN_DIR)
