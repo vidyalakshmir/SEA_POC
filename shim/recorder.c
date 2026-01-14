@@ -30,7 +30,7 @@ struct saved_args_t
 static uint64_t global_seqno=0;
 void record_socket(FILE* fp, syscall_type_t type, struct saved_args_t regs, int64_t ret_val, int saved_errno)
 {
-	global_seqno++;
+
 	
 
 	record_header_t header;
@@ -40,7 +40,7 @@ void record_socket(FILE* fp, syscall_type_t type, struct saved_args_t regs, int6
 	header.saved_errno = saved_errno;
 	header.body_len = sizeof(socket_data_t); 
 	
-	socket_data_t body;
+	socket_data_t body = {0};
 	body.domain = regs.rdi;
 	body.type = regs.rsi;
 	body.protocol = regs.rdx;
@@ -60,7 +60,7 @@ void record_socket(FILE* fp, syscall_type_t type, struct saved_args_t regs, int6
 
 void record_fcntl(FILE* fp, syscall_type_t type, struct saved_args_t regs, int64_t ret_val, int saved_errno)
 {
-	global_seqno++;
+
 	
 
 	record_header_t header;
@@ -70,10 +70,10 @@ void record_fcntl(FILE* fp, syscall_type_t type, struct saved_args_t regs, int64
 	header.saved_errno = saved_errno;
 	header.body_len = sizeof(fcntl_data_t); 
 	
-	fcntl_data_t body;
+	fcntl_data_t body = {0};
 	body.fd = regs.rdi;
 	body.cmd = regs.rsi;
-	body.arg = regs.rdx;
+	body.arg = regs.rdx;	//We do not track struct flock stored to arg when cmd = F_GETLK which writes struct flock to arg
 	
 	
 	if(fwrite(&header, sizeof(header), 1, fp) != 1)
@@ -91,7 +91,7 @@ void record_fcntl(FILE* fp, syscall_type_t type, struct saved_args_t regs, int64
 void record_setsockopt(FILE *fp,  syscall_type_t type, struct saved_args_t regs,
                        int64_t ret_val, int saved_errno, pid_t child)
 {
-	global_seqno++;
+
 	record_header_t header;
 	header.seq_num = global_seqno;
     	header.type = type;
@@ -99,7 +99,7 @@ void record_setsockopt(FILE *fp,  syscall_type_t type, struct saved_args_t regs,
 	header.saved_errno = saved_errno;
     	header.body_len = sizeof(setsockopt_data_t);
     	
-	setsockopt_data_t body;
+	setsockopt_data_t body = {0};
 	body.sockfd   = regs.rdi;
         body.level    = regs.rsi;
         body.optname  = regs.rdx;
@@ -159,9 +159,6 @@ void record_setsockopt(FILE *fp,  syscall_type_t type, struct saved_args_t regs,
 
 void record_bind(FILE* fp, syscall_type_t type, struct saved_args_t regs, int64_t ret_val, int saved_errno, pid_t child)
 {
-	global_seqno++;
-	
-
 	record_header_t header;
 	header.seq_num = global_seqno;
 	header.type = type;
@@ -169,7 +166,7 @@ void record_bind(FILE* fp, syscall_type_t type, struct saved_args_t regs, int64_
 	header.saved_errno = saved_errno;
 	header.body_len = sizeof(bind_data_t); //length of socket body
 	
-	bind_data_t body;
+	bind_data_t body = {0};;
 	body.sockfd = regs.rdi;
 	body.addrlen = regs.rdx;
 
@@ -225,9 +222,6 @@ void record_bind(FILE* fp, syscall_type_t type, struct saved_args_t regs, int64_
 
 void record_listen(FILE* fp, syscall_type_t type, struct saved_args_t regs, int64_t ret_val, int saved_errno)
 {
-	global_seqno++;
-	
-
 	record_header_t header;
 	header.seq_num = global_seqno;
 	header.type = type;
@@ -235,7 +229,7 @@ void record_listen(FILE* fp, syscall_type_t type, struct saved_args_t regs, int6
 	header.saved_errno = saved_errno;
 	header.body_len = sizeof(listen_data_t); 
 	
-	listen_data_t body;
+	listen_data_t body = {0};;
 	body.sockfd = regs.rdi;
 	body.backlog = regs.rsi;
 
@@ -255,7 +249,7 @@ void record_listen(FILE* fp, syscall_type_t type, struct saved_args_t regs, int6
 void record_accept(FILE *fp,  syscall_type_t type, struct saved_args_t regs,
                        int64_t ret_val, int saved_errno, pid_t child)
 {
-	global_seqno++;
+
 	record_header_t header;
 	header.seq_num = global_seqno;
     	header.type = type;
@@ -263,23 +257,22 @@ void record_accept(FILE *fp,  syscall_type_t type, struct saved_args_t regs,
 	header.saved_errno = saved_errno;
     	header.body_len = sizeof(accept_data_t);
     	
-	accept_data_t body;
+	accept_data_t body = {0};;
 	body.sockfd   = regs.rdi;
-        body.addrlen  = regs.rdx;
 	body.newfd    = ret_val;
 
     	
     	/* This loop is used to copy addr from child. This ensures we copy 
     	 * until only if accept() is successful and if addrlen and addr is not NULL
     	 */
-    	while(regs.rsi != 0 && body.addrlen != 0 && ret_val >= 0)
+    	if(regs.rsi != 0 && regs.rdx != 0 && ret_val >= 0)
     	{
     		/*  errno is set by PTRACE_PEEKDATA if there is an error. 
     		    This resets errno before calling ptrace
     		 */
         	errno = 0;	
         	
-        	uint32_t actual_len;
+        	socklen_t actual_len;
         	
         	/* Reads one machine word from the child process memory
         	 * regs.r8 contains the pointer to optval in the chid
@@ -289,35 +282,42 @@ void record_accept(FILE *fp,  syscall_type_t type, struct saved_args_t regs,
         	
         	/* If ptrace failed, stop copying
         	*/
-        	if (errno) 
-        		break;
-       
-       		actual_len = (uint32_t)length_word;
+        	if (!errno) 
+        	{
+
+       			memcpy(&actual_len, &length_word, sizeof(socklen_t));
        		
-       		size_t copied = 0;   	//Keeps track of number of bytes read so far
-       		long word; 		//Stores one 'word' of data read from the child
+       			if (actual_len > sizeof(body.addr))
+                		actual_len = sizeof(body.addr);
+       			body.addrlen = actual_len;
        		
-       		while(copied < actual_len && copied < sizeof(body.addr))
-       		{
-       			errno = 0;
-       			word = ptrace(PTRACE_PEEKDATA, child, regs.rsi + copied, NULL);
-       			
-       			if(errno)
-       				break;	
-        		/* If the last remaining bytes copied is less than size(word)
-        	 	 * we correctly obtain the number of bytes which was actually copied
-        	 	 */
-        		size_t copy_size = (actual_len - copied < sizeof(word)) ? (actual_len - copied) : sizeof(word);
-        		/* Copy the word which was read into body.optval at 
-        	 	 * position (body.optval + copied)
-        	 	 * within body.optval
-        	 	 */
-        		memcpy(body.addr + copied, &word, copy_size);
+       			size_t copied = 0;   	//Keeps track of number of bytes read so far
+       			long word; 		//Stores one 'word' of data read from the child
+       		
+       			while(copied < actual_len)
+       			{
+       				errno = 0;
+       				word = ptrace(PTRACE_PEEKDATA, child, regs.rsi + copied, NULL);
+
+       				if(errno)
+       					break;	
+        			/* If the last remaining bytes copied is less than size(word)
+        	 	 	* we correctly obtain the number of bytes which was actually copied
+        	 	 	*/
+        			size_t copy_size = actual_len - copied; 
+        			if (copy_size > sizeof(word))  
+        				copy_size = sizeof(word);
+        			/* Copy the word which was read into body.optval at 
+        	 	 	* position (body.optval + copied)
+        	 	 	* within body.optval
+        	 	 	*/
+        			memcpy(body.addr + copied, &word, copy_size);
         	
-        		//Adds the size of 'word' to keep track of bytes copied so far
-        		copied += sizeof(word);
+        			//Adds the size of 'word' to keep track of bytes copied so far
+        			copied += copy_size;
+        		}
         	}
-        	body.addrlen = actual_len;
+
     	}
     	
     	if(fwrite(&header, sizeof(header), 1, fp) != 1)
@@ -329,6 +329,140 @@ void record_accept(FILE *fp,  syscall_type_t type, struct saved_args_t regs,
 		perror("fwrite body failed");
 	}
 	fflush(fp);
+}
+
+void record_nanosleep(FILE *fp, syscall_type_t type, struct saved_args_t args, int64_t ret_val, int saved_errno, pid_t child)
+{
+
+    record_header_t header;
+    header.seq_num = global_seqno;
+    header.type = type;
+    header.ret_val = ret_val;
+    header.saved_errno = saved_errno;
+    header.body_len = sizeof(nanosleep_data_t);
+
+    nanosleep_data_t body = {0};;
+    // Copy requested time
+    long word;
+    size_t copied = 0;
+    if (args.rdi != 0) //If duration for sleep is not NULL
+    {
+        while (copied < sizeof(struct timespec)) {
+            errno = 0;
+            word = ptrace(PTRACE_PEEKDATA, child, args.rdi + copied, NULL);
+            if (errno) 
+            	break;
+            size_t copy_size = sizeof(word);
+            if (copied + copy_size > sizeof(struct timespec))
+                copy_size = sizeof(struct timespec) - copied;
+            memcpy((uint8_t*)&body.usec + copied, &word, copy_size);
+            copied += copy_size;
+        }
+    }
+
+    // Copy remaining time if rem pointer is non-NULL
+    body.rem_valid = 0;
+    if (args.rsi != 0) {
+        copied = 0;
+        while (copied < sizeof(struct timespec)) {
+            errno = 0;
+            word = ptrace(PTRACE_PEEKDATA, child, args.rsi + copied, NULL);
+            if (errno) 
+            	break;
+            size_t copy_size = sizeof(word);
+            if (copied + copy_size > sizeof(struct timespec))
+                copy_size = sizeof(struct timespec) - copied;
+            memcpy((uint8_t*)&body.rem + copied, &word, copy_size);
+            copied += copy_size;
+        }
+        body.rem_valid = 1;
+    }
+
+    // Write to trace file
+    if (fwrite(&header, sizeof(header), 1, fp) != 1) 
+    	perror("fwrite header failed");
+    if (fwrite(&body, sizeof(body), 1, fp) != 1) 
+    	perror("fwrite body failed");
+    fflush(fp);
+}
+
+void record_recv(FILE *fp, syscall_type_t type, struct saved_args_t regs, int64_t ret_val, int saved_errno, pid_t child)
+{
+
+    record_header_t header;
+    header.seq_num     = global_seqno;
+    header.type        = type;
+    header.ret_val     = ret_val;
+    header.saved_errno = saved_errno;
+    header.body_len    = sizeof(recv_data_t);
+
+    recv_data_t body = {0};
+    body.sockfd = regs.rdi;
+    body.len    = regs.rdx;   // requested length
+    body.flags  = regs.r10;
+
+    /* -------- Copy received data buffer -------- */
+    if (ret_val > 0 && regs.rsi != 0) {
+        size_t to_copy = ret_val;
+        if (to_copy > sizeof(body.buf))
+            to_copy = sizeof(body.buf);
+
+        size_t copied = 0;
+        while (copied < to_copy) {
+            errno = 0;
+            long word = ptrace(PTRACE_PEEKDATA,
+                               child,
+                               regs.rsi + copied,
+                               NULL);
+            if (errno)
+                break;
+
+            size_t copy_size = to_copy - copied;
+            if (copy_size > sizeof(word))
+                copy_size = sizeof(word);
+
+            memcpy(body.buf + copied, &word, copy_size);
+            copied += copy_size;
+        }
+    }
+
+    /* -------- Copy src_addr + addrlen -------- */
+    if (ret_val >= 0 && regs.r8 != 0 && regs.r9 != 0) {
+        errno = 0;
+        long len_word = ptrace(PTRACE_PEEKDATA, child, regs.r9, NULL);
+        if (!errno) {
+            socklen_t actual_len;
+            memcpy(&actual_len, &len_word, sizeof(socklen_t));
+
+            if (actual_len > sizeof(body.src_addr))
+                actual_len = sizeof(body.src_addr);
+
+            body.addrlen = actual_len;
+
+            size_t copied = 0;
+            while (copied < actual_len) {
+                errno = 0;
+                long word = ptrace(PTRACE_PEEKDATA,
+                                   child,
+                                   regs.r8 + copied,
+                                   NULL);
+                if (errno)
+                    break;
+
+                size_t copy_size = actual_len - copied;
+                if (copy_size > sizeof(word))
+                    copy_size = sizeof(word);
+
+                memcpy(body.src_addr + copied, &word, copy_size);
+                copied += copy_size;
+            }
+        }
+    }
+
+    /* -------- Write record -------- */
+    fwrite(&header, sizeof(header), 1, fp);
+    fwrite(&body, sizeof(body), 1, fp);
+    fflush(fp);
 }
 
 
@@ -452,6 +586,7 @@ int main(int argc, char* argv[])
 
 		if (!in_syscall)
 		{
+
 			//Extracts the syscall number from the architecture-specific register (org_rax on x86-64)
 			current_syscall = regs.orig_rax;
 			args_entry.rdi = regs.rdi;
@@ -459,8 +594,9 @@ int main(int argc, char* argv[])
     			args_entry.rdx = regs.rdx;
     			args_entry.r10 = regs.r10;
     			args_entry.r8  = regs.r8;
-    			args_entry.r9  = regs.r9;			
-			switch(current_syscall)
+    			args_entry.r9  = regs.r9;
+			global_seqno++;
+			/*switch(current_syscall)
 			{
 			
 				case __NR_socket:
@@ -468,17 +604,19 @@ int main(int argc, char* argv[])
 				case __NR_setsockopt:
 				case __NR_bind:
 				case __NR_listen:
+				case __NR_clock_nanosleep:
 				case __NR_accept:
+				case __NR_recvfrom:
 					break;
 					
 				
-                	        	
-				
-			}
+   
+			}*/
 			in_syscall = 1;
 		}
 		else
 		{
+
 			int64_t ret = regs.rax;
 			int saved_errno = 0;
 			if(ret < 0)
@@ -505,6 +643,12 @@ int main(int argc, char* argv[])
 				case __NR_accept:
 					record_accept(trace_file, SYS_TYPE_ACCEPT, args_entry, ret, saved_errno, child);
 					break;
+				case __NR_nanosleep:
+					record_nanosleep(trace_file, SYS_TYPE_NANOSLEEP, args_entry, ret, saved_errno, child);
+					break;
+			        case __NR_recvfrom:
+			            record_recv(trace_file, SYS_TYPE_RECV, args_entry, ret, saved_errno, child);
+			                break;
 			}
 			in_syscall = 0;
 		}

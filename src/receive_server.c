@@ -83,7 +83,9 @@ int main()
 	{
 		printf("\nWaiting for client to connect\n");
 		//Accepts client connections
-		client_sockdesc = accept(server_fd, (struct sockaddr *)&address, &addrlen);
+		struct sockaddr_in client_address;
+		socklen_t client_addrlen = sizeof(client_address);
+		client_sockdesc = accept(server_fd, (struct sockaddr *)&client_address, &client_addrlen);
 		printf("\nReturn value of accept() is %d. ErrorCode is %d\n",client_sockdesc, errno);		
 		if(client_sockdesc < 0)
 		{

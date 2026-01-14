@@ -11,6 +11,7 @@ typedef enum
 	SYS_TYPE_LISTEN,
 	SYS_TYPE_SETSOCKOPT,
 	SYS_TYPE_ACCEPT,
+	SYS_TYPE_NANOSLEEP,
 	SYS_TYPE_RECV
 } syscall_type_t;
 
@@ -57,18 +58,37 @@ typedef struct {
 typedef struct {
     int sockfd;            // listening socket
     int newfd;             // returned accepted socket
-    uint32_t addrlen;      // length of addr which is returned after accept() is invoked
+    socklen_t addrlen;      // length of addr which is returned after accept() is invoked
     uint8_t addr[128];     // address of peer socket (sockaddr_in, sockaddr_in6, sockaddr_un)
 } accept_data_t;
 
-
-// The "Universal" Event Wrapper
 typedef struct {
-    record_header_t header;
-    union {
-        socket_data_t socket_pkt;
-        uint64_t      raw_args[6]; // Fallback for generic syscalls
-    } body;
-} syscall_event_t;
+    uint64_t usec;           // usleep argument
+    struct timespec rem;     // optional remaining time if syscall was interrupted
+    int rem_valid;           // 1 if rem pointer was non-NULL and copied
+} nanosleep_data_t;
+
+typedef struct {
+    int sockfd;
+    uint8_t buf[4096];    // actual received data, size = ret_val
+    uint32_t len;         // requested buffer length
+    int flags;    
+    uint32_t addrlen;     // if src_addr is not NULL
+    uint8_t src_addr[128];// peer address
+
+} recv_data_t;
+
+/* replayer → mutator */
+typedef struct {
+    uint64_t seq_num;
+    uint32_t syscall_type;   // syscall_type_t
+} replay_req_t;
+
+/* mutator → replayer */
+typedef struct {
+    uint32_t match;          // 1 = matched, 0 = ignore
+} replay_resp_t;
+
+
 
 #endif
