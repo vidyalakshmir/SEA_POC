@@ -4,8 +4,10 @@
  Description : This simple server program creates a non-blocking socket(), binds to port 8090,
  	       and listens on it. The accept() function is invoked to receive client connections,
 	       and once it succeeds, the server receives data from the client, closes the client
-	       socket and stops. The accept() is non-blocking; if no client connects, the server sleeps for 1 second
-	       and loops back to accept() for the next connection.
+	       socket and stops. The server checks the error code if recv() fails, and handles 
+	       error code EWOULDBLOCK / EAGAIN, which handles case when the client socket is non-blocking 
+	       and there is no data send by the client. The accept() is non-blocking; if no client connects, 
+	       the server sleeps for 1 second and loops back to accept() for the next connection. 
  ============================================================================
  */
 
@@ -116,13 +118,32 @@ int main()
 					   //
 	/* Receives data from client. If successful, recv() returns
 	 * the number of bytes of data received. If not successful,
-	 * it returns -1, and the errno is set to indicate the error
+	 * it returns -1. In case of error code equal to EWOULDBE or EAGAIN
+	 * which indicates that the client socket is non-blocking and that there
+	 * was no data send from the client yet, the server sleeps for 1 second
+	 * and invokes recv() again.
 	 */
-	int recvflag = recv(client_sockdesc, buffer, sizeof(buffer) - 1,0);
-	if(recvflag <= 0)
+	int recvflag = 0;
+	while(1)
 	{
-		perror("Receive failed");
-		exit(1);
+		recvflag = recv(client_sockdesc, buffer, sizeof(buffer) - 1,0);
+		if(recvflag <= 0)
+		{
+			if(errno == EWOULDBLOCK || errno == EAGAIN)
+			{
+				printf("\nSleeping for 1 second\n");
+				fflush(stdout);
+				usleep(1000000); //Sleep for 1 second
+				continue;
+			}
+			else
+			{
+				perror("Receive failed");
+				exit(1);
+			}
+		}
+		else
+			break;
 	}
 
 	/* Adding the null terminator at the end of received data to avoid 

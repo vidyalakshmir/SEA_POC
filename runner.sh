@@ -1,5 +1,5 @@
 #!/bin/bash
-
+SERVER=$1
 # Start the server and client in the background
-bin/receive_server & bin/send_client 127.0.0.1
+$SERVER & bin/send_client 127.0.0.1
 
