@@ -1,4 +1,4 @@
-# SEA_POC
+# POC for Simulating Execution Anomalies (SEA)
 
 By some estimates, as many as 80% of software bugs are discovered after deployment - an alarming statistic given that such bugs cost 15-60× more to fix than those identified earlier in the development process. A major reason for this disparity is that many applications contain bugs that are specific to the environments in which they are deployed. While conventional testing can uncover logical errors, some flaws manifest only under very specific environmental conditions.
 
