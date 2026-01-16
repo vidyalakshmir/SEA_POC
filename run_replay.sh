@@ -1,10 +1,38 @@
 #!/bin/bash
 
+usage() {
+    echo "Usage: $0 [--patched]"
+    echo
+    echo "Options:"
+    echo "  --patched     Replay the server in patched mode (handles EAGAIN/EWOULDBLOCK)"
+    echo "  -h, --help    display this help message"
+    exit 0
+}
+
+PATCHED=""
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --patched)
+            PATCHED="--patched"
+            shift
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *)
+            echo "Unknown option: $1"
+            usage
+            ;;
+    esac
+done
+
 # 1. Setup names
 TRACE_FILE="trace.bin"
 TO_MUTATOR="pipe_to_mutator"
 FROM_MUTATOR="pipe_from_mutator"
-APP_BIN=$1
+APP_BIN="bin/receive_server"
 REPLAYER_BIN="shim/bin/replayer"
 
 # 2. Clean up old pipes and create new ones
@@ -20,7 +48,7 @@ MUTATOR_PID=$!
 
 echo "[*] Launching Replayer to run $APP_BIN..."
 # The Replayer writes to TO_MUTATOR and reads from FROM_MUTATOR
-$REPLAYER_BIN $TO_MUTATOR $FROM_MUTATOR $APP_BIN
+$REPLAYER_BIN $TO_MUTATOR $FROM_MUTATOR $APP_BIN $PATCHED
 
 
 # 3. Cleanup
