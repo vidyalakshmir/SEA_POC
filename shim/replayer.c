@@ -61,7 +61,9 @@ void copy_to_child(pid_t child, unsigned long addr, const void *src, size_t len)
 
 		memcpy((char *)&word, (const char *)src + offset, copy);
 
-		// Overwrite tracee's memory at address dst_addr with word. This supports partial overwrites (where word < 8 bytes)
+		/* Overwrite tracee's memory at address dst_addr with word. This supports partial 
+		 * overwrites (where word < 8 bytes)
+		 */
 		if (ptrace(PTRACE_POKEDATA, child, dst_addr, word) == -1)
 		{
 			perror("PTRACE_POKEDATA");
@@ -83,6 +85,7 @@ int main(int argc, char *argv[])
 	if (child == 0)
 	{
 		/* The child process sets the parent process to trace it. Kernel marks the child as ptrace-enabled */
+		
 		ptrace(PTRACE_TRACEME, 0, NULL, NULL);
 
 		/* Replace the child process with the user-provided target program which needs to be traced. Arguments
@@ -265,8 +268,9 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			/* 	At syscall exit, if the system call was marked to be skipped and replayed, the replayer receives the system call information from the
-			 *  mutator and replays the system call according to the received data.
+			/* At syscall exit, if the system call was marked to be skipped and replayed, the replayer 
+			 * receives the system call information from the mutator and replays the system call according 
+			 * to the received data.
 			 */
 			if (!skip_this_syscall)
 			{
