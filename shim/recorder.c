@@ -186,8 +186,8 @@ void record_setsockopt(FILE *fp, syscall_type_t type, struct saved_args_t regs, 
 		 */
 		memcpy(body.optval + copied, &word, copy_size);
 
-		/* Adds the size of 'word' to keep track of bytes copied so far */
-		copied += sizeof(word);
+		/* Adds copy_size to keep track of bytes copied so far */
+		copied += copy_size;
 	}
 
 	if (fwrite(&header, sizeof(header), 1, fp) != 1)
@@ -261,8 +261,8 @@ void record_bind(FILE *fp, syscall_type_t type, struct saved_args_t regs, int64_
 		 */
 		memcpy(body.addr + copied, &word, copy_size);
 
-		// Adds the size of 'word' to keep track of bytes copied so far
-		copied += sizeof(word);
+		// Adds copy_size to keep track of bytes copied so far
+		copied += copy_size;
 	}
 
 	if (fwrite(&header, sizeof(header), 1, fp) != 1)
@@ -352,7 +352,7 @@ void record_accept(FILE *fp, syscall_type_t type, struct saved_args_t regs,
 		 */
 		errno = 0;
 
-		socklen_t actual_len;
+		uint32_t actual_len;
 
 		/* Reads one machine word from the child process memory
 		 * regs.r8 contains the pointer to optval in the chid
@@ -365,7 +365,7 @@ void record_accept(FILE *fp, syscall_type_t type, struct saved_args_t regs,
 		if (!errno)
 		{
 
-			memcpy(&actual_len, &length_word, sizeof(socklen_t));
+			memcpy(&actual_len, &length_word, sizeof(uint32_t));
 
 			if (actual_len > sizeof(body.addr))
 				actual_len = sizeof(body.addr);
@@ -425,7 +425,6 @@ void record_accept(FILE *fp, syscall_type_t type, struct saved_args_t regs,
 
 void record_nanosleep(FILE *fp, syscall_type_t type, struct saved_args_t args, int64_t ret_val, int saved_errno, pid_t child)
 {
-
 	record_header_t header;
 	header.seq_num = global_seqno;
 	header.type = type;
@@ -435,43 +434,137 @@ void record_nanosleep(FILE *fp, syscall_type_t type, struct saved_args_t args, i
 
 	nanosleep_data_t body = {0};
 	
-	// Copy requested time
+	struct timespec temp_ts;
 	long word;
 	size_t copied = 0;
 	if (args.rdi != 0) /* If duration for sleep is not NULL */
 	{
+		int err = 0;
 		while (copied < sizeof(struct timespec))
 		{
 			errno = 0;
 			word = ptrace(PTRACE_PEEKDATA, child, args.rdi + copied, NULL);
 			if (errno)
+			{
+				err = 1;
 				break;
-			size_t copy_size = sizeof(word);
-			if (copied + copy_size > sizeof(struct timespec))
-				copy_size = sizeof(struct timespec) - copied;
-			memcpy((uint8_t *)&body.usec + copied, &word, copy_size);
+			}
+		
+			size_t copy_size = (sizeof(struct timespec) - copied < sizeof(word)) ? (sizeof(struct timespec) - copied) : sizeof(word);
+			
+			memcpy((uint8_t *)&temp_ts + copied, &word, copy_size);
 			copied += copy_size;
 		}
+		if (!err) {
+            // Convert timespec to total microseconds
+            body.usec = (uint64_t)temp_ts.tv_sec * 1000000ULL + (temp_ts.tv_nsec / 1000);
+        }
 	}
 
 	/* Copy remaining time if rem pointer is non-NULL */
 	body.rem_valid = 0;
 	if (args.rsi != 0)
 	{
+		struct timespec temp_rem; // Local buffer to hold the child's timespec
 		copied = 0;
+		int ptrace_error = 0;
 		while (copied < sizeof(struct timespec))
 		{
 			errno = 0;
 			word = ptrace(PTRACE_PEEKDATA, child, args.rsi + copied, NULL);
-			if (errno)
+			if (errno != 0)
+			{
+				ptrace_error = 1;
 				break;
-			size_t copy_size = sizeof(word);
-			if (copied + copy_size > sizeof(struct timespec))
-				copy_size = sizeof(struct timespec) - copied;
-			memcpy((uint8_t *)&body.rem + copied, &word, copy_size);
+			}
+			size_t copy_size = (sizeof(struct timespec) - copied < sizeof(word)) ? (sizeof(struct timespec) - copied) : sizeof(word);
+            memcpy((uint8_t *)&temp_rem + copied, &word, copy_size);
 			copied += copy_size;
 		}
-		body.rem_valid = 1;
+		if (!ptrace_error)
+		{
+			body.rem_sec = (int64_t)temp_rem.tv_sec;
+            body.rem_nsec = (int64_t)temp_rem.tv_nsec;
+			body.rem_valid = 1;
+		}
+	}
+
+	/* Write to trace file */
+	if (fwrite(&header, sizeof(header), 1, fp) != 1)
+		perror("fwrite header failed");
+	if (fwrite(&body, sizeof(body), 1, fp) != 1)
+		perror("fwrite body failed");
+	fflush(fp);
+}
+
+void record_clock_nanosleep(FILE *fp, syscall_type_t type, struct saved_args_t args, int64_t ret_val, int saved_errno, pid_t child)
+{
+	record_header_t header;
+	header.seq_num = global_seqno;
+	header.type = type;
+	header.ret_val = ret_val;
+	header.saved_errno = saved_errno;
+	header.body_len = sizeof(nanosleep_data_t);
+
+	nanosleep_data_t body = {0};
+	
+	struct timespec temp_ts;
+	long word;
+	size_t copied = 0;
+
+	unsigned long req_ptr = args.rdx; 
+    unsigned long rem_ptr = args.r10;
+
+	if (args.rdx != 0) /* If duration for sleep is not NULL */
+	{
+		int err = 0;
+		while (copied < sizeof(struct timespec))
+		{
+			errno = 0;
+			word = ptrace(PTRACE_PEEKDATA, child, args.rdi + copied, NULL);
+			if (errno)
+			{
+				err = 1;
+				break;
+			}
+		
+			size_t copy_size = (sizeof(struct timespec) - copied < sizeof(word)) ? (sizeof(struct timespec) - copied) : sizeof(word);
+			
+			memcpy((uint8_t *)&temp_ts + copied, &word, copy_size);
+			copied += copy_size;
+		}
+		if (!err) {
+            // Convert timespec to total microseconds
+            body.usec = (uint64_t)temp_ts.tv_sec * 1000000ULL + (temp_ts.tv_nsec / 1000);
+        }
+	}
+
+	/* Copy remaining time if rem pointer is non-NULL */
+	body.rem_valid = 0;
+	if (args.r10 != 0 && ret_val < 0)
+	{
+		struct timespec temp_rem; // Local buffer to hold the child's timespec
+		copied = 0;
+		int ptrace_error = 0;
+		while (copied < sizeof(struct timespec))
+		{
+			errno = 0;
+			word = ptrace(PTRACE_PEEKDATA, child, args.rsi + copied, NULL);
+			if (errno != 0)
+			{
+				ptrace_error = 1;
+				break;
+			}
+			size_t copy_size = (sizeof(struct timespec) - copied < sizeof(word)) ? (sizeof(struct timespec) - copied) : sizeof(word);
+            memcpy((uint8_t *)&temp_rem + copied, &word, copy_size);
+			copied += copy_size;
+		}
+		if (!ptrace_error)
+		{
+			body.rem_sec = (int64_t)temp_rem.tv_sec;
+            body.rem_nsec = (int64_t)temp_rem.tv_nsec;
+			body.rem_valid = 1;
+		}
 	}
 
 	/* Write to trace file */
@@ -753,6 +846,9 @@ int main(int argc, char *argv[])
 				break;
 			case __NR_nanosleep:
 				record_nanosleep(trace_file, SYS_TYPE_NANOSLEEP, args_entry, ret, saved_errno, child);
+				break;
+			case __NR_clock_nanosleep:
+				record_clock_nanosleep(trace_file, SYS_TYPE_CLOCK_NANOSLEEP, args_entry, ret, saved_errno, child);
 				break;
 			case __NR_recvfrom:
 				record_recv(trace_file, SYS_TYPE_RECV, args_entry, ret, saved_errno, child);

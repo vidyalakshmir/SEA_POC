@@ -33,6 +33,7 @@
 
 #include "trace_defs.h"
 
+
 static uint64_t global_seqno = 0;
 
 /* copy_to_child() copies len bytes from the tracer’s address space into the
@@ -205,7 +206,7 @@ int main(int argc, char *argv[])
 			current_syscall = regs.orig_rax;
 			global_seqno++;
 			syscall_type_t sys_type;
-
+			
 			/* This is used to get an architecture-independent number for
 			 * each system call. This could be later changed to include all/most
 			 * system calls through a a map
@@ -228,14 +229,17 @@ int main(int argc, char *argv[])
 			case __NR_listen:
 				sys_type = SYS_TYPE_LISTEN;
 				break;
+			case __NR_nanosleep:
+				sys_type = SYS_TYPE_NANOSLEEP;				
+				break;
 			case __NR_clock_nanosleep:
-				sys_type = SYS_TYPE_NANOSLEEP;
+				sys_type = SYS_TYPE_CLOCK_NANOSLEEP;				
 				break;
 			case __NR_accept:
-				sys_type = SYS_TYPE_ACCEPT;
+				sys_type = SYS_TYPE_ACCEPT;				
 				break;
 			case __NR_recvfrom:
-				sys_type = SYS_TYPE_RECV;
+				sys_type = SYS_TYPE_RECV;				
 				break;
 			default:
 				sys_type = -1;
@@ -247,7 +251,7 @@ int main(int argc, char *argv[])
 				{
 					.seq_num = global_seqno,
 					.syscall_type = sys_type};
-
+			
 			write(pipe_to_mutator, &req, sizeof(req));
 
 			replay_resp_t resp;
@@ -255,6 +259,7 @@ int main(int argc, char *argv[])
 
 			if (resp.match)
 			{
+				
 				/* --- SKIP syscall --- */
 				regs.orig_rax = -1;
 				ptrace(PTRACE_SETREGS, child, 0, &regs);
@@ -273,7 +278,8 @@ int main(int argc, char *argv[])
 			 * to the received data.
 			 */
 			if (!skip_this_syscall)
-			{
+			{		
+						
 				record_header_t header;
 				read(pipe_from_mutator, &header, sizeof(header));
 
@@ -287,6 +293,7 @@ int main(int argc, char *argv[])
 				case SYS_TYPE_ACCEPT:
 				{
 					accept_data_t *body = (accept_data_t *)payload;
+					
 					/* Copy addr */
 					if (regs.rsi && body->addrlen > 0)
 					{
@@ -301,22 +308,45 @@ int main(int argc, char *argv[])
 
 					/* Inject fd */
 					regs.rax = body->newfd;
+					
 					break;
 				}
 
 				case SYS_TYPE_NANOSLEEP:
 				{
 					nanosleep_data_t *body = (nanosleep_data_t *)payload;
+					
 					if (body->rem_valid && regs.rsi)
 					{
-						copy_to_child(child, regs.rsi, &body->rem, sizeof(struct timespec));
+						struct timespec ts_to_restore;
+						ts_to_restore.tv_sec = (time_t)body->rem_sec;
+						ts_to_restore.tv_nsec = (long)body->rem_nsec;
+						copy_to_child(child, regs.rsi, &ts_to_restore, sizeof(struct timespec));
+
 					}
+					
+					break;
+				}
+				case SYS_TYPE_CLOCK_NANOSLEEP:
+				{
+					nanosleep_data_t *body = (nanosleep_data_t *)payload;
+					
+					if (body->rem_valid && regs.r10)
+					{
+						struct timespec ts_to_restore;
+						ts_to_restore.tv_sec = (time_t)body->rem_sec;
+						ts_to_restore.tv_nsec = (long)body->rem_nsec;
+						copy_to_child(child, regs.r10, &ts_to_restore, sizeof(struct timespec));
+
+					}
+					
 					break;
 				}
 
 				case SYS_TYPE_RECV:
 				{
 					recv_data_t *body = (recv_data_t *)payload;
+					
 					/* Copy recv buffer */
 					if (header.ret_val > 0 && regs.rsi)
 					{
@@ -334,6 +364,7 @@ int main(int argc, char *argv[])
 					{
 						copy_to_child(child, regs.r9, &body->addrlen, sizeof(uint32_t));
 					}
+					
 					break;
 				}
 				default:
