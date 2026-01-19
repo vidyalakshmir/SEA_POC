@@ -63,6 +63,11 @@ If the mutator finds a match, it sends the system call record to the replayer, w
 The replayer should produce the output
 `SERVER: recv failed: errno=11 (EWOULDBLOCK): Resource temporarily unavailable`
 
+To pretty print a system call trace stored in `trace.bin`
+```
+shim/bin/print_trace trace.bin
+```
+
 <a name="ref1"></a>
 [1] https://github.com/dotnet/runtime/issues/25069
 
