@@ -8,10 +8,10 @@ SEND_CLIENT = $(BIN_DIR)/send_client
 RECORD_SYSCALL = $(SHIM_BIN_DIR)/recorder
 MUTATE_SYSCALL = $(SHIM_BIN_DIR)/mutator
 REPLAY_SYSCALL = $(SHIM_BIN_DIR)/replayer
-
+PRINT_TRACEFILE = $(SHIM_BIN_DIR)/print_trace
 
 # The 'all' target needs to know what it's building
-all: $(RECEIVE_SERVER) $(SEND_CLIENT) $(RECORD_SYSCALL) $(MUTATE_SYSCALL) $(REPLAY_SYSCALL)
+all: $(RECEIVE_SERVER) $(SEND_CLIENT) $(RECORD_SYSCALL) $(MUTATE_SYSCALL) $(REPLAY_SYSCALL) $(PRINT_TRACEFILE)
 
 $(RECEIVE_SERVER): src/receive_server.c
 	@mkdir -p $(BIN_DIR)
@@ -30,9 +30,13 @@ $(MUTATE_SYSCALL) : shim/mutator.c
 		@mkdir -p $(SHIM_BIN_DIR)
 		$(CC) $(CFLAGS) shim/mutator.c -o $(MUTATE_SYSCALL)
 
-$(REPLAY_SYSCALL) : shim/replayer.c
+$(REPLAY_SYSCALL) : shim/replayer.c 
 		@mkdir -p $(SHIM_BIN_DIR)
 		$(CC) $(CFLAGS) shim/replayer.c -o $(REPLAY_SYSCALL)
+
+$(PRINT_TRACEFILE) : shim/print_tracefile.c shim/pretty_printer.c shim/pretty_printer.h
+		@mkdir -p $(SHIM_BIN_DIR)
+		$(CC) $(CFLAGS) shim/print_tracefile.c shim/pretty_printer.c -o $(PRINT_TRACEFILE)
 
 clean:
 	rm -rf $(BIN_DIR) $(SHIM_BIN_DIR)

@@ -13,6 +13,10 @@
 
 #include <stdint.h>
 
+/* Currently, only defining system call types for networking related system calls which are handled
+ * in current version of POC. This should be extended to add all system calls
+ */
+
 typedef enum 
 {
 	SYS_TYPE_SOCKET,
@@ -22,6 +26,7 @@ typedef enum
 	SYS_TYPE_SETSOCKOPT,
 	SYS_TYPE_ACCEPT,
 	SYS_TYPE_NANOSLEEP,
+    SYS_TYPE_CLOCK_NANOSLEEP,
 	SYS_TYPE_RECV
 } syscall_type_t;
 
@@ -41,11 +46,13 @@ typedef struct {
     int protocol;
 } socket_data_t;
 
-/* Data for fcntl system call */
+/* Data for fcntl system call. Currently we do not handle 
+ * storing the arg (of type struct flock) when cmd = F_SETLK 
+ */
 typedef struct {
     int fd;        // file descriptor
     int cmd;       // fcntl command
-    int64_t arg;   // optional argument, 0 if unused
+    int64_t arg;   // optional argument, can be an integer or a pointer to a struct or 0 if unused
 } fcntl_data_t;
 
 /* Data for setsockopt system call */
@@ -53,15 +60,15 @@ typedef struct {
     int sockfd;
     int level;
     int optname;
-    uint32_t optlen;
-    uint8_t optval[64]; 
+    uint32_t optlen;    //Use uint32_t instead of socklen_t to ensure a fixed 4-byte width for cross-platform binary compatibility
+    uint8_t optval[64]; // Fixed-size buffer to capture the most common socket options (e.g., integers, struct linger) without dynamic memory allocation
 } setsockopt_data_t;
 
 /* Data for bind system call */
 typedef struct {
     int sockfd;
-    uint32_t addrlen;
-    uint8_t addr[128];  // length enough to hold sockaddr_in, sockaddr_in6, sockaddr_un
+    uint32_t addrlen;   // Actual length of the address data for cross-platform parsing
+    uint8_t addr[128];  // Large fixed buffer to accommodate all socket address types (sockaddr_in(IPv4), sockaddr_in6(IPv6), sockaddr_un(Unix))
 } bind_data_t;
 
 /* Data for listen system call */
@@ -74,14 +81,15 @@ typedef struct {
 typedef struct {
     int sockfd;            // listening socket
     int newfd;             // returned accepted socket
-    socklen_t addrlen;      // length of addr which is returned after accept() is invoked
+    uint32_t addrlen;      // length of addr which is returned after accept() is invoked
     uint8_t addr[128];     // address of peer socket (sockaddr_in, sockaddr_in6, sockaddr_un)
 } accept_data_t;
 
 /* Data for nanosleep system call */
 typedef struct {
     uint64_t usec;           // usleep argument
-    struct timespec rem;     // optional remaining time if syscall was interrupted
+    int64_t rem_sec;        // optional remaining seconds if syscall was interrupted
+    int64_t rem_nsec;       // optional remaining nanoseconds if syscall was interrupted
     int rem_valid;           // 1 if rem pointer was non-NULL and copied
 } nanosleep_data_t;
 
