@@ -1,5 +1,5 @@
 # POC for Simulating Execution Anomalies (SEA)
-
+## Introduction
 By some estimates, as many as 80% of software bugs are discovered after deployment - an alarming statistic given that such bugs cost 15-60× more to fix than those identified earlier in the development process. A major reason for this disparity is that many applications contain bugs that are specific to the environments in which they are deployed. While conventional testing can uncover logical errors, some flaws manifest only under very specific environmental conditions.
 
 Simulating Environmental Anomalies (SEA) is a technique designed to expose such environment-dependent bugs by simulating an application’s behavior under diverse deployment conditions. Because an application’s interaction with external resources—such as the filesystem, network, and operating system—is mediated entirely through system calls, SEA operates by recording these system calls and selectively mutating their outcomes. By injecting anomalous data or error codes  that model real-world failures (i.e., fault injection) by altering system call return values and error codes, SEA enables developers to evaluate how applications respond to environmental stress and edge cases without relying on costly or complex physical testbeds.
@@ -23,7 +23,7 @@ make
 ```
 
 
-## Run the server program + client
+## Executing the server program + client
 This program implements a simple server that creates a non-blocking listening socket and accepts incoming client connections. The server does not explicitly account for whether the client socket returned by `accept()` is blocking or non-blocking, and instead immediately invokes `recv()` on the accepted socket. The interaction between the server and client during the initial trace-capture run proceeds as follows.
 
 The server and client programs are executed concurrently. The server creates a listening socket, marks it as non-blocking, and then invokes `bind()` and `listen()`. It subsequently enters a loop in which it repeatedly calls `accept()` to wait for incoming connections. Meanwhile, the client initially sleeps to allow the server sufficient time to start listening, and then attempts to connect to the server.
