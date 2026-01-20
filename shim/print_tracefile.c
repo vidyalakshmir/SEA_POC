@@ -1,3 +1,6 @@
+/* This program receives a system call trace file as its argument and 
+ * prints all records including header and its data 
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
