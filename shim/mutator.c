@@ -63,7 +63,7 @@ void run_mutator(const char *trace_path)
         ssize_t n = read(pipe_in, &req, sizeof(req));
         if (n <= 0)
             break;
-
+        fprintf(stderr, "\nMUTATOR: Received %ld %d", req.seq_num, req.syscall_type);
         /* Peek at the trace file and store the position of this record */
         long pos = ftell(trace_f);
 
@@ -73,7 +73,7 @@ void run_mutator(const char *trace_path)
          * indicated to continue the system call */
         if (fread(&header, sizeof(record_header_t), 1, trace_f) != 1)
         {
-            fprintf(stderr, "\nDEBUG: Received %ld %d. Error reading header. Sending signal 0", req.seq_num, req.syscall_type);
+            fprintf(stderr, "\nMUTATOR: Error reading header. Sending signal 0");
             replay_resp_t resp = {.match = 0};
             write(pipe_out, &resp, sizeof(resp));
             clearerr(trace_f);
@@ -150,7 +150,7 @@ void run_mutator(const char *trace_path)
                 fprintf(stderr, "\nMUTATOR: Changing recvfrom errno");
             }
 
-            /* Send Header + Payload
+            /* Send Header + Payload */
             write(pipe_out, &header, sizeof(header));
             fprintf(stderr, "\nDEBUG: Send header and payload");
 

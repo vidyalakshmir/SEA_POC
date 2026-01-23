@@ -205,6 +205,8 @@ int main(int argc, char *argv[])
 			current_syscall = regs.orig_rax;
 			global_seqno++;
 			syscall_type_t sys_type;
+			fprintf(stderr, "\nRECORDER sees %ld %ld", global_seqno, current_syscall);
+
 			/* This is used to get an architecture-independent number for
 			 * each system call. This could be later changed to include all/most
 			 * system calls through a a map
@@ -214,30 +216,39 @@ int main(int argc, char *argv[])
 
 			case __NR_socket:
 				sys_type = SYS_TYPE_SOCKET;
+				fprintf(stderr, "\nSOCKET");
 				break;
 			case __NR_fcntl:
 				sys_type = SYS_TYPE_FCNTL;
+				fprintf(stderr, "\nFCNTL");
 				break;
 			case __NR_setsockopt:
 				sys_type = SYS_TYPE_SETSOCKOPT;
+				fprintf(stderr, "\nSETSOCKOPT");
 				break;
 			case __NR_bind:
 				sys_type = SYS_TYPE_BIND;
+				fprintf(stderr, "\nBIND");
 				break;
 			case __NR_listen:
 				sys_type = SYS_TYPE_LISTEN;
+				fprintf(stderr, "\nLISTEN");
 				break;
 			case __NR_nanosleep:
 				sys_type = SYS_TYPE_NANOSLEEP;
+				fprintf(stderr, "\nNANOSLEEP");
 				break;
 			case __NR_clock_nanosleep:
 				sys_type = SYS_TYPE_CLOCK_NANOSLEEP;
+				fprintf(stderr, "\nCLOCK_NANOSLEEP");
 				break;
 			case __NR_accept:
 				sys_type = SYS_TYPE_ACCEPT;
+				fprintf(stderr, "\nACCEPT");
 				break;
 			case __NR_recvfrom:
 				sys_type = SYS_TYPE_RECVFROM;
+				fprintf(stderr, "\nRECVFROM");
 				break;
 			default:
 				sys_type = -1;
@@ -248,11 +259,13 @@ int main(int argc, char *argv[])
 			replay_req_t req =
 				{
 					.seq_num = global_seqno,
-					.syscall_type = sys_type};
-
+					.syscall_type = sys_type
+				};
+			fprintf(stderr, "\nRECORDER sends %ld %d", global_seqno, sys_type);
 			write(pipe_to_mutator, &req, sizeof(req));
 			replay_resp_t resp;
 			read(pipe_from_mutator, &resp, sizeof(resp));
+			fprintf(stderr, "\nRECORDER receives %d", resp.match);
 			if (resp.match == 1)
 			{
 
@@ -287,7 +300,7 @@ int main(int argc, char *argv[])
 			 */
 			if (!skip_this_syscall)
 			{
-
+				fprintf(stderr,"Inside syscall exit %ld", current_syscall);
 				record_header_t header;
 				read(pipe_from_mutator, &header, sizeof(header));
 
@@ -398,6 +411,7 @@ int main(int argc, char *argv[])
 					regs.rax = header.ret_val;
 
 				ptrace(PTRACE_SETREGS, child, 0, &regs);
+
 			}
 
 			in_syscall = 0;
