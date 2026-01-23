@@ -27,7 +27,7 @@ typedef enum
 	SYS_TYPE_ACCEPT,
 	SYS_TYPE_NANOSLEEP,
     SYS_TYPE_CLOCK_NANOSLEEP,
-	SYS_TYPE_RECV
+	SYS_TYPE_RECVFROM
 } syscall_type_t;
 
 /* The Common Header: Every system call trace has this */

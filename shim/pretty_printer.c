@@ -282,10 +282,10 @@ void print_trace_record(const record_header_t* hdr, const void* body)
 			break;
 		}
 
-		case SYS_TYPE_RECV:
+		case SYS_TYPE_RECVFROM:
 		{
 			recv_data_t* d = (recv_data_t*)body;
-			printf("[RECV] FD: %d, Received: %ld bytes", d->sockfd, hdr->ret_val);
+			printf("[RECVFROM] FD: %d, Received: %ld bytes", d->sockfd, hdr->ret_val);
 
     		if (hdr->ret_val > 0) 
     		{

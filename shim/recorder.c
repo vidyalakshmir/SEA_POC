@@ -1,8 +1,8 @@
 /*
  * This program records system calls of a target program passed as an argument.
- * It specifically traces networking-related system calls (e.g., socket, fcntl, 
- * setsockopt, bind, listen, accept, recvfrom) and stores their arguments, return 
- * values, errno and any data written to user space by the kernel during syscall 
+ * It specifically traces networking-related system calls (e.g., socket, fcntl,
+ * setsockopt, bind, listen, accept, recvfrom) and stores their arguments, return
+ * values, errno and any data written to user space by the kernel during syscall
  * execution in a binary file called 'trace.bin'.
  */
 
@@ -220,7 +220,7 @@ void record_bind(FILE *fp, syscall_type_t type, struct saved_args_t regs, int64_
 	header.type = type;
 	header.ret_val = ret_val;
 	header.saved_errno = saved_errno;
-	header.body_len = sizeof(bind_data_t); 
+	header.body_len = sizeof(bind_data_t);
 
 	bind_data_t body = {0};
 	body.sockfd = regs.rdi;
@@ -433,7 +433,7 @@ void record_nanosleep(FILE *fp, syscall_type_t type, struct saved_args_t args, i
 	header.body_len = sizeof(nanosleep_data_t);
 
 	nanosleep_data_t body = {0};
-	
+
 	struct timespec temp_ts;
 	long word;
 	size_t copied = 0;
@@ -449,16 +449,17 @@ void record_nanosleep(FILE *fp, syscall_type_t type, struct saved_args_t args, i
 				err = 1;
 				break;
 			}
-		
+
 			size_t copy_size = (sizeof(struct timespec) - copied < sizeof(word)) ? (sizeof(struct timespec) - copied) : sizeof(word);
-			
+
 			memcpy((uint8_t *)&temp_ts + copied, &word, copy_size);
 			copied += copy_size;
 		}
-		if (!err) {
-            // Convert timespec to total microseconds
-            body.usec = (uint64_t)temp_ts.tv_sec * 1000000ULL + (temp_ts.tv_nsec / 1000);
-        }
+		if (!err)
+		{
+			// Convert timespec to total microseconds
+			body.usec = (uint64_t)temp_ts.tv_sec * 1000000ULL + (temp_ts.tv_nsec / 1000);
+		}
 	}
 
 	/* Copy remaining time if rem pointer is non-NULL */
@@ -478,13 +479,13 @@ void record_nanosleep(FILE *fp, syscall_type_t type, struct saved_args_t args, i
 				break;
 			}
 			size_t copy_size = (sizeof(struct timespec) - copied < sizeof(word)) ? (sizeof(struct timespec) - copied) : sizeof(word);
-            memcpy((uint8_t *)&temp_rem + copied, &word, copy_size);
+			memcpy((uint8_t *)&temp_rem + copied, &word, copy_size);
 			copied += copy_size;
 		}
 		if (!ptrace_error)
 		{
 			body.rem_sec = (int64_t)temp_rem.tv_sec;
-            body.rem_nsec = (int64_t)temp_rem.tv_nsec;
+			body.rem_nsec = (int64_t)temp_rem.tv_nsec;
 			body.rem_valid = 1;
 		}
 	}
@@ -507,13 +508,13 @@ void record_clock_nanosleep(FILE *fp, syscall_type_t type, struct saved_args_t a
 	header.body_len = sizeof(nanosleep_data_t);
 
 	nanosleep_data_t body = {0};
-	
+
 	struct timespec temp_ts;
 	long word;
 	size_t copied = 0;
 
-	unsigned long req_ptr = args.rdx; 
-    unsigned long rem_ptr = args.r10;
+	unsigned long req_ptr = args.rdx;
+	unsigned long rem_ptr = args.r10;
 
 	if (args.rdx != 0) /* If duration for sleep is not NULL */
 	{
@@ -527,16 +528,17 @@ void record_clock_nanosleep(FILE *fp, syscall_type_t type, struct saved_args_t a
 				err = 1;
 				break;
 			}
-		
+
 			size_t copy_size = (sizeof(struct timespec) - copied < sizeof(word)) ? (sizeof(struct timespec) - copied) : sizeof(word);
-			
+
 			memcpy((uint8_t *)&temp_ts + copied, &word, copy_size);
 			copied += copy_size;
 		}
-		if (!err) {
-            // Convert timespec to total microseconds
-            body.usec = (uint64_t)temp_ts.tv_sec * 1000000ULL + (temp_ts.tv_nsec / 1000);
-        }
+		if (!err)
+		{
+			// Convert timespec to total microseconds
+			body.usec = (uint64_t)temp_ts.tv_sec * 1000000ULL + (temp_ts.tv_nsec / 1000);
+		}
 	}
 
 	/* Copy remaining time if rem pointer is non-NULL */
@@ -556,13 +558,13 @@ void record_clock_nanosleep(FILE *fp, syscall_type_t type, struct saved_args_t a
 				break;
 			}
 			size_t copy_size = (sizeof(struct timespec) - copied < sizeof(word)) ? (sizeof(struct timespec) - copied) : sizeof(word);
-            memcpy((uint8_t *)&temp_rem + copied, &word, copy_size);
+			memcpy((uint8_t *)&temp_rem + copied, &word, copy_size);
 			copied += copy_size;
 		}
 		if (!ptrace_error)
 		{
 			body.rem_sec = (int64_t)temp_rem.tv_sec;
-            body.rem_nsec = (int64_t)temp_rem.tv_nsec;
+			body.rem_nsec = (int64_t)temp_rem.tv_nsec;
 			body.rem_valid = 1;
 		}
 	}
@@ -576,9 +578,9 @@ void record_clock_nanosleep(FILE *fp, syscall_type_t type, struct saved_args_t a
 }
 
 /**
- * record_recv
+ * record_recvfrom
  *
- * Records a recv() or recvfrom() system call.
+ * Records recvfrom() system call.
  * Captures:
  *   - Socket file descriptor
  *   - Buffer contents read from kernel
@@ -589,7 +591,7 @@ void record_clock_nanosleep(FILE *fp, syscall_type_t type, struct saved_args_t a
  * Ensures data received by the program is faithfully replayed.
  */
 
-void record_recv(FILE *fp, syscall_type_t type, struct saved_args_t regs, int64_t ret_val, int saved_errno, pid_t child)
+void record_recvfrom(FILE *fp, syscall_type_t type, struct saved_args_t regs, int64_t ret_val, int saved_errno, pid_t child)
 {
 
 	record_header_t header;
@@ -684,19 +686,19 @@ int main(int argc, char *argv[])
 	if (child == 0)
 	{
 		/* The child process sets the parent process to trace it. Kernel marks the child as ptrace-enabled */
-		ptrace(PTRACE_TRACEME, 0, NULL, NULL); 
+		ptrace(PTRACE_TRACEME, 0, NULL, NULL);
 
-		/* Replace the child process with the user-provided target program which needs to be traced. 
-		* Arguments passed would be all arguments starting from argv[1]. Since this process has called 
-		* PTRACE_TRACEME, after the process images is replaced, the process is stopped and a SIGTRAP signal 
-		* is send to the child by the kernel.
-		*/
-		execv(argv[1], &argv[1]); 
+		/* Replace the child process with the user-provided target program which needs to be traced.
+		 * Arguments passed would be all arguments starting from argv[1]. Since this process has called
+		 * PTRACE_TRACEME, after the process images is replaced, the process is stopped and a SIGTRAP signal
+		 * is send to the child by the kernel.
+		 */
+		execv(argv[1], &argv[1]);
 
-		/* Terminate the child process if execv() fails. Reaches here only if execv was not successful 
+		/* Terminate the child process if execv() fails. Reaches here only if execv was not successful
 		 * since a successful execv() never returns.
 		 */
-		exit(1); 
+		exit(1);
 	}
 
 	/* The parent process (tracer) waits for the child to stop immediately after execv(), at which
@@ -745,8 +747,8 @@ int main(int argc, char *argv[])
 	 */
 	while (1)
 	{
-		/* Resumes the child process and requests that it stop at the next syscall entry or syscall exit. 
-		 * From the tracer's perspective, the tracee will appear to have been stopped by the receipt of a 
+		/* Resumes the child process and requests that it stop at the next syscall entry or syscall exit.
+		 * From the tracer's perspective, the tracee will appear to have been stopped by the receipt of a
 		 * SIGTRAP. The tracee will still continue to stop for other signals like SIGINT, SIGSEGV, SIGTERM etc.
 		 */
 		ptrace(PTRACE_SYSCALL, child, 0, 0);
@@ -794,7 +796,7 @@ int main(int argc, char *argv[])
 		 */
 		ptrace(PTRACE_GETREGS, child, 0, &regs);
 
-		/* During system call entry, all argument register values are stored to a struct. The 
+		/* During system call entry, all argument register values are stored to a struct. The
 		 * global sequence number which recorders the sequence number of the system call is incremented.
 		 */
 		if (!in_syscall)
@@ -816,7 +818,7 @@ int main(int argc, char *argv[])
 		 * serialize and store the syscall details in the trace file.
 		 */
 		else
-		{	
+		{
 
 			int64_t ret = regs.rax;
 			int saved_errno = 0;
@@ -851,7 +853,7 @@ int main(int argc, char *argv[])
 				record_clock_nanosleep(trace_file, SYS_TYPE_CLOCK_NANOSLEEP, args_entry, ret, saved_errno, child);
 				break;
 			case __NR_recvfrom:
-				record_recv(trace_file, SYS_TYPE_RECV, args_entry, ret, saved_errno, child);
+				record_recvfrom(trace_file, SYS_TYPE_RECVFROM, args_entry, ret, saved_errno, child);
 				break;
 			}
 			in_syscall = 0;

@@ -61,7 +61,7 @@ The replayer program traces the program that needs to be analyzed using `ptrace`
 If the mutator finds a match, it sends the system call record to the replayer, which then uses that information to replay that system call without executing the system call. In case of the system call `recv`, the mutator changes the error code to `EWOULDBLOCK` and the return value to -1 to simulate the anomaly. In this way, the anomaly is simulated and the program behavior is observed.
 
 ```
-./run_replay.sh bin/receive_server
+./run_replay.sh
 ```
 
 The replayer should produce the output
@@ -71,6 +71,19 @@ To pretty print a system call trace stored in `trace.bin`
 ```
 shim/bin/print_trace trace.bin
 ```
+
+To observe patched server's behavior when this anomaly is introduced, run the commands
+
+```
+./run_recorder.sh --patched
+./run_replay.sh --patched
+```
+
+This records, mutates, and replays the execution of a patched server. During replay, when the mutator changes the return value of the `recvfrom` system call to -1 with the error code `EWOULDBLOCK`, the program diverges from the originally recorded execution path. In the patched server, this condition is handled correctly: the server sleeps for one second to accommodate non-blocking `recv()` semantics and then repeatedly invokes `recv()` until it succeeds.
+
+In our PoC, whenever such divergence occurs, specifically when the mutator alters the return value or error code of a system call and the execution deviates from the recorded path at a program point (denoted as point C), we pause deterministic replay. The program is then allowed to execute freely until it reaches program point C again, at which point deterministic replay is resumed.
+
+In contrast, the flawed server fails to handle the non-blocking `recv()` and hence and exits immediately with an error. The patched server, however, correctly sleeps and retries `recv()`, eventually re-entering the recorded execution path, at which point replay continues deterministically.
 
 <a name="ref1"></a>
 [1] https://github.com/dotnet/runtime/issues/25069
