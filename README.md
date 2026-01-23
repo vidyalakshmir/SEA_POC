@@ -1,4 +1,11 @@
-# POC for Simulating Execution Anomalies (SEA)
+# POC for Simulating Environmental Anomalies (SEA)
+
+## TLDR
+
+This is a proof-of-concept demonstration for a technique to take a program running in one environment (operating system, network type, etc.) and find bugs that would occur when it runs in a different environment.  This example takes code that runs correctly on Linux, but will error on a Mac or BSD system, discovering the bug while testing only on Linux.
+
+To try it, check out the code, run `make` and `./runner.sh`.
+
 ## Introduction
 By some estimates, as many as 80% of software bugs are discovered after deployment - an alarming statistic given that such bugs cost 15-60× more to fix than those identified earlier in the development process. A major reason for this disparity is that many applications contain bugs that are specific to the environments in which they are deployed. While conventional testing can uncover logical errors, some flaws manifest only under very specific environmental conditions.
 
