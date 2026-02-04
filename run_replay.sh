@@ -43,15 +43,15 @@ mkfifo $FROM_MUTATOR
 echo "[*] Starting Mutator"
 # The Mutator reads from TO_MUTATOR and writes to FROM_MUTATOR
 
- shim/bin/mutator trace.bin < pipe_to_mutator > pipe_from_mutator  2>/dev/null &
+ shim/bin/mutator trace.bin < pipe_to_mutator > pipe_from_mutator 2>/dev/null &
 MUTATOR_PID=$!
 
 echo "[*] Launching Replayer to run $APP_BIN..."
 # The Replayer writes to TO_MUTATOR and reads from FROM_MUTATOR
-$REPLAYER_BIN $TO_MUTATOR $FROM_MUTATOR $APP_BIN $PATCHED
+$REPLAYER_BIN $TO_MUTATOR $FROM_MUTATOR $APP_BIN $PATCHED 2>/dev/null
 
 
 # 3. Cleanup
-kill $MUTATOR_PID
+kill $MUTATOR_PID  2>/dev/null
 rm $TO_MUTATOR $FROM_MUTATOR
 echo "[*] Replay complete."
