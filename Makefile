@@ -13,6 +13,8 @@ PRINT_TRACEFILE = $(SHIM_BIN_DIR)/print_trace
 # The 'all' target needs to know what it's building
 all: $(RECEIVE_SERVER) $(SEND_CLIENT) $(RECORD_SYSCALL) $(MUTATE_SYSCALL) $(REPLAY_SYSCALL) $(PRINT_TRACEFILE)
 
+app: $(RECEIVE_SERVER) $(SEND_CLIENT)
+
 $(RECEIVE_SERVER): src/receive_server.c
 	@mkdir -p $(BIN_DIR)
 	$(CC) src/receive_server.c -o $(RECEIVE_SERVER)
