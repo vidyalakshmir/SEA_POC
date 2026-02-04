@@ -48,11 +48,7 @@ MUTATOR_PID=$!
 
 echo "[*] Launching Replayer to run $APP_BIN..."
 # The Replayer writes to TO_MUTATOR and reads from FROM_MUTATOR
-<<<<<<< HEAD
 $REPLAYER_BIN $TO_MUTATOR $FROM_MUTATOR $APP_BIN $PATCHED 2>/dev/null
-=======
-$REPLAYER_BIN $TO_MUTATOR $FROM_MUTATOR $APP_BIN $PATCHED 2> /dev/null
->>>>>>> bbfd678b0117f5b0e6594e2faceedff15ad58dfc
 
 
 # 3. Cleanup
