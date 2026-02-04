@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
 			{
 				if (errno == EWOULDBLOCK || errno == EAGAIN)
 				{
-					printf("\nSleeping for 1 second\n");
+					printf("\nSERVER: Sleeping for 1 second\n");
 					fflush(stdout);
 					usleep(1000000); // Sleep for 1 second
 					continue;
